@@ -1,38 +1,86 @@
-athlete:
-  name: Filipe
-  max_hr: 190
+name: Filipe
+profile:
+  level: intermediate_returning
+  current_phase: aerobic_rebuild
+  recent_break_days: 30
+  primary_sport: running
+heart_rate:
+  max_hr: 191
+  max_hr_source: observed_garmin
   resting_hr: 55
   hr_zones:
     z1:
-    - 114
-    - 133
+      min: 115
+      max: 139
+      purpose: recovery
     z2:
-    - 133
-    - 152
+      min: 140
+      max: 155
+      purpose: easy_aerobic
     z3:
-    - 152
-    - 171
+      min: 156
+      max: 168
+      purpose: moderate
     z4:
-    - 171
-    - 181
+      min: 169
+      max: 178
+      purpose: threshold
     z5:
-    - 181
-    - 200
-  goal:
+      min: 179
+      max: 191
+      purpose: high_intensity
+goal:
+  primary:
     race_name: Meia Maratona
-    race_date: '2026-11-15'
-    target_time: 01:45:00
-  weekly_availability:
-    days_per_week: 4
-    long_run_day: sunday
-  preferences:
-    avoid_days:
-    - monday
-    notes: Prefere treinos intervalados pela manha, evita ladeira em dias de recovery.
+    distance_km: 21.1
+    race_date: null
+    target_time: null
+    objective: finish_running
+    priority: high
+  secondary:
+    distance_km: 10
+    objective: rebuild_endurance_and_speed
+training:
+  days_per_week: 4
+  long_run_day: sunday
+  intensity_distribution:
+    easy_percent: 80
+    quality_percent: 20
+  current_focus:
+  - aerobic_base
+  - endurance
+  - running_economy
+  - gradual_volume_increase
+  progression:
+    current_long_run_km: 6
+    target_long_run_km: 18
+    max_weekly_increase_percent: 10
+preferences:
+  avoid_days:
+  - monday
+  preferred_training_days:
+  - tuesday
+  - wednesday
+  - friday
+  - sunday
+  interval_preference: morning
+  recovery:
+    avoid_hills: true
+  strength_training:
+    recommended_days_per_week: 2
+    goal: maintain_muscle_mass
+notes:
+- Retornando apos aproximadamente 30 dias sem correr.
+- Priorizar reconstrucao da base aerobica antes de buscar velocidade.
+- Corridas leves devem permanecer predominantemente em Z2.
+- Evitar transformar treinos leves em treinos progressivos.
+- Longao deve ser predominantemente leve.
+- Reavaliar zonas conforme novos dados do Garmin.
+- Definir tempo-alvo da meia maratona somente apos consolidar 10 km e 15 km.
 history:
-  last_synced_activity_id: '23721186135'
+  last_synced_activity_id: '23822760429'
   last_pushed_workout_ids:
-  - '1642315971'
-  - '1642315975'
-  - '1642315976'
-  - '1642315986'
+  - '1650745941'
+  - '1650745949'
+  - '1650745960'
+  - '1650745972'

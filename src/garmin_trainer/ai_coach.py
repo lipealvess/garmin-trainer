@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 
+import yaml
 from google import genai
 from google.genai import types
 
@@ -50,10 +51,11 @@ def _build_user_prompt(
     start_date: date,
     days_ahead: int,
 ) -> str:
-    athlete = profile.get("athlete", {})
+    athlete_context = {k: v for k, v in profile.items() if k != "history"}
+    athlete_yaml = yaml.safe_dump(athlete_context, allow_unicode=True, sort_keys=False)
     horizon = start_date + timedelta(days=days_ahead)
     return f"""## Perfil do atleta
-{athlete}
+{athlete_yaml}
 
 ## Janela de planejamento
 De {start_date.isoformat()} ate {horizon.isoformat()} ({days_ahead} dias). Nao gere treinos com data

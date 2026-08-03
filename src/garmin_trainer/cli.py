@@ -130,5 +130,16 @@ def run(days_ahead: int, push: bool, json_out: str | None, start_date: str | Non
         click.echo(f"Email de insights enviado para {config.email_to}.")
 
 
+@main.command()
+@click.option("--log-file", type=click.Path(exists=True), required=True, help="Log da execucao que falhou.")
+def notify_failure(log_file: str) -> None:
+    """Envia um email de alerta quando a execucao agendada falha. Chamado pelo run_pipeline.ps1."""
+    config = AppConfig()
+    with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+        content = f.read().strip()
+    excerpt = content[-2000:] if content else "(log vazio - o script provavelmente falhou antes de gerar qualquer saida)"
+    email_report.send_failure_alert(config, excerpt)
+
+
 if __name__ == "__main__":
     main()

@@ -11,6 +11,7 @@ from garminconnect.workout import (
 )
 
 from .config import AppConfig, PROJECT_ROOT
+from .retry import call_with_retry
 
 RUNNING_TYPES = {"running"}
 CYCLING_TYPES = {"cycling"}
@@ -26,7 +27,7 @@ class GarminClient:
         )
 
     def login(self) -> None:
-        self.api.login(self._config.token_store)
+        call_with_retry(lambda: self.api.login(self._config.token_store))
 
     def recent_activities(self, limit: int = 10, activity_type: str | None = None) -> list[dict[str, Any]]:
         result = self.api.get_activities(start=0, limit=limit, activitytype=activity_type)

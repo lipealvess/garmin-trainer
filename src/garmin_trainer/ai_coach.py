@@ -9,6 +9,7 @@ from google.genai import types
 
 from .config import AppConfig
 from .plan_schema import CoachResponse
+from .retry import call_with_retry
 
 MODEL = "gemini-flash-latest"
 
@@ -82,15 +83,17 @@ def generate_plan(
     client = genai.Client(api_key=config.gemini_api_key)
     start_date = start_date or date.today()
 
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=_build_user_prompt(profile, activity_summary_md, wellness_summary_md, start_date, days_ahead),
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            response_mime_type="application/json",
-            response_json_schema=CoachResponse.model_json_schema(),
-            temperature=0.4,
-        ),
+    response = call_with_retry(
+        lambda: client.models.generate_content(
+            model=MODEL,
+            contents=_build_user_prompt(profile, activity_summary_md, wellness_summary_md, start_date, days_ahead),
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                response_json_schema=CoachResponse.model_json_schema(),
+                temperature=0.4,
+            ),
+        )
     )
 
     if not response.text:

@@ -64,3 +64,32 @@ def send_report(config: AppConfig, plan: CoachResponse, sync_result: SyncResult)
         server.starttls()
         server.login(config.smtp_user, config.smtp_password)
         server.send_message(msg)
+
+
+def send_failure_alert(config: AppConfig, log_excerpt: str) -> None:
+    """Avisa por email quando a execucao agendada falha antes de gerar o relatorio normal.
+
+    Sem isso, uma falha (login quebrado, path invalido, dependencia faltando) fica
+    silenciosa: o atleta so percebe quando nota a ausencia do email de insights.
+    """
+    if not config.smtp_user or not config.smtp_password or not config.email_to:
+        return
+
+    msg = MIMEMultipart()
+    msg["From"] = config.smtp_user
+    msg["To"] = config.email_to
+    msg["Subject"] = f"Garmin Trainer - FALHA na execucao de {date.today().isoformat()}"
+    body = f"""O pipeline automatico do garmin-trainer falhou hoje e nao gerou o relatorio de insights.
+
+Ultimas linhas do log:
+{log_excerpt}
+
+--
+Gerado automaticamente pelo garmin-trainer.
+"""
+    msg.attach(MIMEText(body, "plain", "utf-8"))
+
+    with smtplib.SMTP(config.smtp_host, config.smtp_port) as server:
+        server.starttls()
+        server.login(config.smtp_user, config.smtp_password)
+        server.send_message(msg)

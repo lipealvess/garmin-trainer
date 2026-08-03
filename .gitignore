@@ -1,0 +1,13 @@
+.venv/
+.inspect_venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.env
+.garminconnect_tokens/
+data/activities/*
+!data/activities/.gitkeep
+data/plans/*
+!data/plans/.gitkeep
+data/logs/*
+!data/logs/.gitkeep

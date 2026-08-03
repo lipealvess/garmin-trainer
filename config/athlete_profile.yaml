@@ -1,0 +1,38 @@
+athlete:
+  name: Filipe
+  max_hr: 190
+  resting_hr: 55
+  hr_zones:
+    z1:
+    - 114
+    - 133
+    z2:
+    - 133
+    - 152
+    z3:
+    - 152
+    - 171
+    z4:
+    - 171
+    - 181
+    z5:
+    - 181
+    - 200
+  goal:
+    race_name: Meia Maratona
+    race_date: '2026-11-15'
+    target_time: 01:45:00
+  weekly_availability:
+    days_per_week: 4
+    long_run_day: sunday
+  preferences:
+    avoid_days:
+    - monday
+    notes: Prefere treinos intervalados pela manha, evita ladeira em dias de recovery.
+history:
+  last_synced_activity_id: '23721186135'
+  last_pushed_workout_ids:
+  - '1642315971'
+  - '1642315975'
+  - '1642315976'
+  - '1642315986'

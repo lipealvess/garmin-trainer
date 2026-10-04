@@ -11,7 +11,7 @@ nada no Garmin ou no perfil do atleta — e apenas leitura.
 
 ## Passos
 
-1. Rode: `./.venv/Scripts/python.exe -m garmin_trainer.cli sync`
+1. Rode: `.venv/bin/python -m garmin_trainer.cli sync`
 2. Se pedir MFA, peça o codigo ao usuario.
 3. Apresente a tabela de atividades retornada de forma legivel.
 4. Se nao houver atividades novas, informe isso claramente (nao e um erro).

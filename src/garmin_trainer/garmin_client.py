@@ -30,7 +30,9 @@ class GarminClient:
         call_with_retry(lambda: self.api.login(self._config.token_store))
 
     def recent_activities(self, limit: int = 10, activity_type: str | None = None) -> list[dict[str, Any]]:
-        result = self.api.get_activities(start=0, limit=limit, activitytype=activity_type)
+        result = call_with_retry(
+            lambda: self.api.get_activities(start=0, limit=limit, activitytype=activity_type)
+        )
         return result if isinstance(result, list) else result.get("activities", [])
 
     def activity_detail(self, activity_id: str) -> dict[str, Any]:
@@ -38,6 +40,15 @@ class GarminClient:
 
     def activity_splits(self, activity_id: str) -> dict[str, Any]:
         return self.api.get_activity_splits(activity_id)
+
+    def workout(self, workout_id: str) -> dict[str, Any]:
+        return self.api.get_workout_by_id(workout_id)
+
+    def race_predictions(self) -> dict[str, Any]:
+        return self.api.get_race_predictions()
+
+    def daily_stats(self, date_str: str) -> dict[str, Any]:
+        return self.api.get_stats(date_str)
 
     def sleep_data(self, date_str: str) -> dict[str, Any]:
         return self.api.get_sleep_data(date_str)
@@ -50,6 +61,9 @@ class GarminClient:
 
     def resting_hr(self, date_str: str) -> dict[str, Any]:
         return self.api.get_rhr_day(date_str)
+
+    def body_composition(self, start: str, end: str | None = None) -> dict[str, Any]:
+        return self.api.get_body_composition(start, end)
 
     def download_tcx(self, activity_id: str, dest_dir: Path | None = None) -> Path:
         dest_dir = dest_dir or (PROJECT_ROOT / "data" / "activities")

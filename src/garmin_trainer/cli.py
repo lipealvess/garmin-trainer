@@ -9,7 +9,17 @@ import click
 from . import email_report
 from .config import AppConfig, load_profile, save_profile
 from .garmin_client import GarminClient
-from .pipeline import generate_coach_plan, push_plan, run_pipeline, sync_activities
+from .metrics import fmt_pace
+from .pipeline import (
+    TickResult,
+    generate_coach_plan,
+    push_plan,
+    run_pipeline,
+    run_tick,
+    run_trainer_review,
+    sync_activities,
+)
+from .state import load_state, save_state
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -130,15 +140,82 @@ def run(days_ahead: int, push: bool, json_out: str | None, start_date: str | Non
         click.echo(f"Email de insights enviado para {config.email_to}.")
 
 
+def _print_tick(result: TickResult, email: bool) -> None:
+    if not result.activities:
+        click.echo("Nenhuma atividade nova.")
+    for item in result.activities:
+        s = item.detail.summary
+        click.echo(f"=== Atividade: {s.date} {s.name} ({s.distance_km} km, {fmt_pace(s.avg_pace_min_per_km)}/km) ===")
+        click.echo(item.analysis.headline if item.analysis else f"Analise da IA indisponivel: {item.error}")
+        if email:
+            click.echo("Email da atividade enviado.")
+
+    if result.morning_skipped_reason:
+        click.echo(f"Relatorio matinal: pulado ({result.morning_skipped_reason}).")
+    elif result.morning:
+        click.echo(f"=== Relatorio matinal (prontidao {result.morning.readiness}) ===")
+        click.echo(result.morning.headline)
+    else:
+        click.echo(f"Relatorio matinal sem analise da IA: {result.morning_error}")
+    if result.morning_sent:
+        click.echo("Email do relatorio matinal enviado.")
+
+
+@main.command()
+@click.option("--email/--no-email", default=True, show_default=True, help="Envia os emails.")
+def tick(email: bool) -> None:
+    """Execucao agendada: analisa atividades novas e envia o relatorio matinal uma vez por dia. Nunca gera nem publica treinos - o treinador Greg (Garmin Coach) cuida disso."""
+    _print_tick(run_tick(AppConfig(), email=email), email)
+
+
+@main.command()
+@click.option("--email/--no-email", default=True, show_default=True, help="Envia os emails.")
+def daily(email: bool) -> None:
+    """Gera o relatorio matinal agora (mesmo que ja tenha sido enviado hoje) e analisa atividades novas."""
+    _print_tick(run_tick(AppConfig(), email=email, force_morning=True), email)
+
+
+@main.command()
+@click.option("--limit", default=5, show_default=True, help="Quantidade de atividades recentes a analisar.")
+@click.option("--email", is_flag=True, default=False, help="Envia a analise por email.")
+def review(limit: int, email: bool) -> None:
+    """Analise retrospectiva das ultimas N atividades, como personal trainer. Nunca propoe treinos."""
+    config = AppConfig()
+    result = run_trainer_review(config, limit=limit, email=email)
+
+    click.echo("=== Resumo ===")
+    click.echo(result.summary)
+    click.echo()
+    click.echo("=== O que evoluiu ===")
+    click.echo(result.highlights)
+    click.echo()
+    click.echo("=== Pontos de atencao ===")
+    click.echo(result.improvement_areas)
+    click.echo()
+    click.echo("=== Recuperacao e peso ===")
+    click.echo(result.recovery_assessment)
+
+    if email:
+        click.echo()
+        click.echo(f"Email de analise enviado para {config.email_to}.")
+
+
 @main.command()
 @click.option("--log-file", type=click.Path(exists=True), required=True, help="Log da execucao que falhou.")
 def notify_failure(log_file: str) -> None:
-    """Envia um email de alerta quando a execucao agendada falha. Chamado pelo run_pipeline.ps1."""
+    """Envia um email de alerta quando a execucao agendada falha (no maximo um por dia)."""
+    state = load_state()
+    today = date.today().isoformat()
+    if state.get("last_failure_alert_date") == today:
+        click.echo("Alerta de falha ja enviado hoje - nao reenviando.")
+        return
     config = AppConfig()
     with open(log_file, "r", encoding="utf-8", errors="replace") as f:
         content = f.read().strip()
     excerpt = content[-2000:] if content else "(log vazio - o script provavelmente falhou antes de gerar qualquer saida)"
     email_report.send_failure_alert(config, excerpt)
+    state["last_failure_alert_date"] = today
+    save_state(state)
 
 
 if __name__ == "__main__":

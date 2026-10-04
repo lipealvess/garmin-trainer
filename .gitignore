@@ -11,3 +11,5 @@ data/plans/*
 !data/plans/.gitkeep
 data/logs/*
 !data/logs/.gitkeep
+data/state.json
+data/.tick.lock

@@ -1,102 +1,65 @@
 # garmin-trainer
 
-Pipeline automatizado: a IA (Google Gemini) analisa suas atividades, sono, estresse e HRV do Garmin
-Connect e gera o proximo bloco de treinos, que e publicado e agendado de volta no seu relogio Garmin.
+Acompanhamento automatizado de treino e saúde a partir do Garmin Connect, com análises da IA (Google
+Gemini) enviadas por email (Gmail).
+
+Desde 2026-09-13 quem monta o plano de treinos é o **treinador Greg (Garmin Coach)**. Este projeto
+**não prescreve treinos**: ele monitora, analisa e explica o que os dados do relógio mostram.
 
 ```
-Garmin Connect  --(atividades + sono/estresse/HRV)-->  garmin-trainer
-                                                              |
-                                                              v
-                                                   resumo compacto (markdown)
-                                                              |
-                                                              v
-                                                   Gemini API (JSON schema estruturado)
-                                                              |
-                                                              v
-                                                plano de treino + insights (JSON tipado)
-                                                              |
-                                                              v
-                                          workout builder (garminconnect.workout)
-                                                              |
-                                                              v
-Garmin Connect  <--(upload + schedule_workout)--  garmin-trainer  --(email)--> caixa de entrada
+Garmin Connect --(atividades, treino prescrito, sono, HRV, FC, estresse, body battery, passos)--> garmin-trainer
+                                                                                                    |
+                                                                       Gemini (JSON estruturado) <--+
+                                                                                                    |
+                                                                       email HTML (Gmail) <---------+
 ```
 
-## Como funciona
+## O que você recebe
 
-1. **Sync**: busca no Garmin Connect as atividades novas desde a ultima sincronizacao
-   (`garmin_client.py`, `metrics.py`), alem de sono, estresse, HRV e FC de repouso dos ultimos dias
-   (`wellness.py`).
-2. **Coach**: monta um prompt com o perfil do atleta (`config/athlete_profile.yaml`), o resumo das
-   atividades e os dados de recuperacao, e chama a API do Google Gemini (tier gratuito) forcando uma
-   resposta estruturada via JSON schema (`ai_coach.py`, `plan_schema.py`). A IA usa sono/estresse/HRV
-   para de fato ajustar a intensidade do bloco (nao so comentar), e explica isso em
-   `recovery_assessment`.
-3. **Build + push**: converte o plano estruturado em objetos `RunningWorkout`/`CyclingWorkout` da
-   biblioteca `garminconnect` e publica + agenda no Garmin Connect (`workout_builder.py`,
-   `garmin_client.py`).
-4. **Email**: opcionalmente envia um relatorio por email com os insights (`email_report.py`).
+**1. Um email por atividade**, assim que ela aparece no Garmin Connect (checagem a cada 30 min):
+- veredito do treino e esforço real (leve → muito forte);
+- prescrito pelo Greg × executado (pace/FC alvo de cada bloco do treino do Garmin Coach);
+- FC: tempo por zona, desacoplamento pace:FC (deriva cardíaca), efeito do calor;
+- ritmo volta a volta e cadência;
+- o que foi bem, pontos de atenção e dicas de recuperação.
 
-Tudo isso e orquestrado em `pipeline.py` e exposto via CLI em `cli.py`.
+**2. Um relatório matinal por dia**, assim que o sono da noite sincroniza (ou a partir das 11h):
+- prontidão do dia (alta/moderada/baixa);
+- sono: duração, score, fases (profundo/REM), estresse e FC durante o sono;
+- recuperação: HRV × faixa normal, FC de repouso × média de 7 dias, body battery ao acordar;
+- o dia de ontem: estresse, minutos em estresse alto, passos × meta, minutos de intensidade;
+- tendências de 7 dias, contagem regressiva da prova, previsão de tempo do Garmin e peso;
+- dicas práticas para hoje.
 
-## Setup
+## Arquitetura
 
-```
-python -m venv .venv
-./.venv/Scripts/python.exe -m pip install -e .
-copy .env.example .env   # preencha GARMIN_EMAIL, GARMIN_PASSWORD, GEMINI_API_KEY
-```
+| Módulo | Papel |
+|---|---|
+| `garmin_client.py` | wrapper da lib `garminconnect` (API não oficial) |
+| `metrics.py` | resumo da atividade, voltas, desacoplamento pace:FC, treino prescrito em texto |
+| `wellness.py` | métricas diárias (sono, HRV, `get_stats`, peso) |
+| `ai_coach.py` | prompts + chamada ao Gemini com schema JSON e fallback entre modelos |
+| `plan_schema.py` | schemas das respostas da IA (`ActivityAnalysis`, `MorningReport`, ...) |
+| `email_report.py` | emails HTML (com versão texto) via SMTP |
+| `pipeline.py` | orquestração (`run_tick`) |
+| `state.py` | `data/state.json`: última atividade analisada, último relatório enviado |
+| `cli.py` | linha de comando |
 
-Edite `config/athlete_profile.yaml` com suas zonas de FC reais, objetivo de prova e preferencias.
+## Setup (Linux)
 
-Teste o login:
-
-```
-./.venv/Scripts/python.exe -m garmin_trainer.cli login-test
-```
-
-Ou peça para o Claude Code rodar a skill `/garmin-setup`, que guia esse processo.
-
-## Uso
-
-```
-# so ler as atividades novas, sem chamar a IA
-./.venv/Scripts/python.exe -m garmin_trainer.cli sync
-
-# gerar o proximo bloco de treinos (dry-run, nao publica nada)
-./.venv/Scripts/python.exe -m garmin_trainer.cli coach
-
-# gerar e publicar/agendar no Garmin Connect
-./.venv/Scripts/python.exe -m garmin_trainer.cli coach --push
-
-# pipeline completo: sync + coach + push
-./.venv/Scripts/python.exe -m garmin_trainer.cli run --push
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e .
+cp .env.example .env      # preencha GARMIN_EMAIL, GARMIN_PASSWORD, GEMINI_API_KEY e o SMTP
+.venv/bin/python -m garmin_trainer.cli login-test
 ```
 
-Ou via Claude Code, usando as skills do projeto: `/garmin-sync`, `/garmin-coach`, `/garmin-pipeline`.
+Edite `config/athlete_profile.yaml` com suas zonas, prova alvo e objetivos. A IA usa esse perfil
+como contexto em todas as análises.
 
-## Automacao (Agendador de Tarefas do Windows)
+### Email (Gmail)
 
-O pipeline roda sozinho, sem depender de sessao do Claude Code nem de nuvem — via **Agendador de
-Tarefas do Windows**, executando `scripts/run_pipeline.ps1` localmente (usa o `.venv` e o `.env` do
-projeto).
-
-- Tarefa: `GarminTrainerPipeline` (ver no Agendador de Tarefas do Windows).
-- Frequencia: a cada 2 dias, 06:00, comecando em 2026-07-25.
-- "Executar assim que possivel apos inicializacao perdida" ativado — se o notebook estiver desligado
-  no horario, roda assim que for ligado.
-- Publica automaticamente no Garmin (`--push`), sem pedir confirmacao — autorizado pelo usuario em
-  2026-07-24 apos validar o fluxo completo contra a conta real.
-- **So gera/publica plano novo se houver atividade nova desde a ultima execucao** — evita chamadas
-  desnecessarias a IA e evita duplicar treinos no calendario.
-- **Substitui os treinos futuros do ciclo anterior** antes de publicar os novos (nao empilha).
-- Envia um **email de insights** (`--email`) a cada execucao com plano novo: o que melhorou, pontos
-  de atencao e metricas/alvos para os proximos treinos.
-- Logs em `data/logs/pipeline_<timestamp>.log`, plano gerado em `data/plans/plan_<timestamp>.json`.
-
-### Configurar o email de insights
-
-Preencha no `.env` (veja `.env.example`):
+No `.env`:
 
 ```
 SMTP_USER=seu_email@gmail.com
@@ -104,33 +67,60 @@ SMTP_PASSWORD=<senha de app do Gmail>
 EMAIL_TO=seu_email@gmail.com
 ```
 
-Pra gerar a senha de app do Gmail (gratis, nao e a senha normal da conta):
-1. Ative a **Verificacao em duas etapas** em https://myaccount.google.com/security (se ainda nao tiver).
-2. Va em https://myaccount.google.com/apppasswords, crie uma senha de app (ex: nome "garmin-trainer").
-3. Cole o codigo de 16 caracteres gerado em `SMTP_PASSWORD` no `.env`.
+Para gerar a senha de app: ative a verificação em duas etapas em https://myaccount.google.com/security
+e crie a senha em https://myaccount.google.com/apppasswords (16 caracteres).
 
-Teste isolado sem publicar nada no Garmin: `garmin-trainer coach --email` (dry-run + email).
+## Automação (systemd, Linux)
 
-Para reconfigurar (horario, frequencia): PowerShell -> `Set-ScheduledTask` / recriar via
-`Register-ScheduledTask`, ou pelo painel grafico "Agendador de Tarefas" do Windows.
+```bash
+scripts/install_linux_timer.sh            # instala e ativa
+scripts/install_linux_timer.sh --remove   # remove
+```
 
-## Limitacoes e pontos a validar
+Isso cria um timer do systemd do usuário (`~/.config/systemd/user/garmin-trainer.{service,timer}`):
 
-- **API nao oficial**: usa a biblioteca `garminconnect` (engenharia reversa do Garmin Connect, sem
-  suporte oficial da Garmin). Pode quebrar se a Garmin mudar a API interna.
-- **Alvos de treino (FC/pace) sao best-effort**: os campos `targetValueOne`, `targetValueTwo` e
-  `zoneNumber` enviados nos steps de treino foram inferidos a partir do schema Pydantic da lib
-  (`garminconnect.workout`, que aceita campos extras) e de convencoes observadas no codigo-fonte, mas
-  **nao foram validados contra uma conta Garmin real**. Antes de confiar no fluxo 100% automatico,
-  publique um treino de teste com `coach --push` e confira no app Garmin Connect / no relogio se os
-  alvos de FC e pace aparecem corretos.
-- **MFA**: se sua conta Garmin tiver autenticacao de dois fatores, o CLI vai pedir o codigo
-  interativamente no terminal — nao funciona sem interacao na primeira vez (o token fica em cache
-  depois, em `.garminconnect_tokens/`, que nunca deve ser commitado).
-- **Nomes de campos das atividades** (`activityId`, `averageHR`, etc., em `metrics.py`) seguem a
-  convencao conhecida do Garmin Connect, mas vale conferir com `sync` numa conta real antes de
-  confiar cegamente nos numeros.
-- **Gemini free tier**: a chave em `GEMINI_API_KEY` e gerada em https://aistudio.google.com (API key,
-  gratis, sem cartao). O tier gratuito do modelo `gemini-2.5-flash` tem limite de requisicoes por
-  minuto/dia (na ordem de dezenas por minuto, ~1000/dia) — mais do que suficiente para rodar o `coach`
-  algumas vezes por semana, mas nao adequado para chamar em loop apertado.
+- roda 2 min depois de ligar o PC e depois a cada 30 min;
+- `Persistent=true`: se o PC estava desligado ou suspenso, roda assim que ele volta;
+- *linger* ativado: roda mesmo antes de você fazer login;
+- sem atividade nova e com o relatório do dia já enviado, não chama a IA nem manda email;
+- sem rede, sai em silêncio e tenta de novo na próxima execução;
+- em caso de falha, manda **no máximo um** email de alerta por dia.
+
+Acompanhar:
+
+```bash
+systemctl --user list-timers garmin-trainer.timer
+journalctl --user -u garmin-trainer.service
+tail -f data/logs/tick_$(date +%Y%m%d).log
+```
+
+No Windows, o equivalente é `scripts/run_pipeline.ps1` no Agendador de Tarefas.
+
+## Uso manual
+
+```bash
+.venv/bin/python -m garmin_trainer.cli tick                # o mesmo que o timer roda
+.venv/bin/python -m garmin_trainer.cli daily               # força o relatório matinal agora
+.venv/bin/python -m garmin_trainer.cli daily --no-email    # só no terminal, não avança o estado
+.venv/bin/python -m garmin_trainer.cli review --limit 5    # análise retrospectiva das últimas corridas
+.venv/bin/python -m garmin_trainer.cli sync                # só lista as atividades novas
+```
+
+Pelo Claude Code: `/garmin-pipeline`, `/garmin-review`, `/garmin-sync`, `/garmin-setup`.
+
+Os comandos `coach` e `run --push` (gerar e publicar treinos próprios) existem mas são legados: não
+use `--push` enquanto o Greg monta o plano, porque os treinos colidiriam no calendário.
+
+## Limitações
+
+- **API não oficial**: a lib `garminconnect` faz engenharia reversa do Garmin Connect e pode quebrar
+  se a Garmin mudar a API interna.
+- **MFA**: se a conta tiver dois fatores, o primeiro login precisa ser interativo (`login-test`). Depois
+  o token fica em cache em `.garminconnect_tokens/` (nunca commitar).
+- **Zonas de FC**: o relógio tem as próprias zonas (usadas em "tempo por zona"), que diferem das
+  `hr_zones` do perfil. A IA é instruída a deixar claro de qual está falando.
+- **Gemini free tier**: devolve 503 com alguma frequência em horários de pico. Por isso há fallback
+  entre modelos (`MODEL` / `FALLBACK_MODELS` em `ai_coach.py`). Se todos falharem, o email sai só
+  com as métricas.
+- **O PC precisa estar ligado** para os emails saírem. Atividades feitas com o PC desligado são
+  analisadas na próxima vez que ele ligar (até 3 dias para trás).

@@ -1,9 +1,24 @@
 name: Filipe
 profile:
   level: intermediate_returning
-  current_phase: aerobic_rebuild
+  current_phase: base_to_race_specific_10k
   recent_break_days: 30
   primary_sport: running
+external_coach:
+  name: Greg
+  source: Garmin Coach
+  since: '2026-09-13'
+  note: 'A partir de 2026-09-13, quem monta o plano de treinos (dias, volume, series)
+    e'' o treinador Greg via Garmin Coach, nao mais o garmin-trainer/IA. O papel deste
+    sistema mudou para acompanhamento: check-in diario com metricas (sono, estresse,
+    HRV, peso) e analise da execucao do treino quando houver um, sem nunca propor
+    treinos, series ou ajustes de plano - isso e'' responsabilidade do Greg.'
+body:
+  weight_kg: 86
+  weight_goal: lose_weight
+  weight_goal_set_on: '2026-09-13'
+  weight_note: Sem meta numerica de peso definida ainda - acompanhar tendencia via
+    peso sincronizado do Garmin (balanca conectada) quando disponivel.
 heart_rate:
   max_hr: 191
   max_hr_source: observed_garmin
@@ -29,40 +44,103 @@ heart_rate:
       min: 179
       max: 191
       purpose: high_intensity
+pace_target_mode: pace
+pace_zones:
+  note: 'Recalibrado em 2026-08-23 usando regressao pace/FC sobre 13 corridas desde
+    o retorno (24/07 a 22/08), nao so uma atividade. Correcao importante: o Z2 real
+    observado ficou mais LENTO do que a estimativa anterior (7.5-8.75) sugeria - nas
+    duas unicas corridas em que a FC ficou de fato em Z2 (140-146 bpm), o pace foi
+    8:11-8:46/km, nao 7:30-8:00/km. Valores em minutos por km (fracao decimal, ex:
+    7.5 = 7:30/km). Atencao: aqui "min" e o pace mais RAPIDO (numero menor) e "max"
+    o mais LENTO (numero maior) da zona - o inverso da logica de hr_zones. Recalibrar
+    de novo apos o teste de 5 km previsto para ~27/09.'
+  z1:
+    min: 8.76
+    max: 10.0
+    purpose: recovery
+  z2:
+    min: 7.92
+    max: 8.76
+    purpose: easy_aerobic
+  z3:
+    min: 7.17
+    max: 7.92
+    purpose: moderate
+  z4:
+    min: 6.63
+    max: 7.17
+    purpose: threshold
+  z5:
+    min: 5.67
+    max: 6.63
+    purpose: high_intensity
 goal:
   primary:
+    race_name: 10km
+    distance_km: 10
+    race_date: '2026-10-11'
+    target_time: 01:00:00
+    objective: run_10k_sub_60min
+    priority: high
+    set_on: '2026-08-23'
+    feasibility_note: 'Meta agressiva partindo do estado atual: pace sustentavel hoje
+      em Z2 real e ~8:00-8:45/km, e nenhuma corrida (antes ou depois da pausa) sustentou
+      6:00/km por mais de ~3km, sempre em esforco quase maximo. Tratar como teto ambicioso,
+      nao como certeza - reavaliar com um teste de 5 km em campo por volta de 2026-09-27
+      (fim da fase de construcao) e ajustar o tempo-alvo realista da prova com base
+      no resultado desse teste.'
+  secondary:
     race_name: Meia Maratona
     distance_km: 21.1
     race_date: null
     target_time: null
-    objective: finish_running
-    priority: high
-  secondary:
-    distance_km: 10
-    objective: rebuild_endurance_and_speed
+    objective: future_goal_after_10k
+    priority: medium
 training:
+  plan_owner: external_coach_greg
+  plan_owner_note: Os campos abaixo (days_per_week, periodization, progression) sao
+    o ultimo plano que o garmin-trainer tinha montado antes de 2026-09-13 - contexto
+    historico, nao usar para propor treinos novos. Quem define o plano atual e' o
+    Greg.
   days_per_week: 4
-  long_run_day: sunday
+  long_run_day: saturday
   intensity_distribution:
-    easy_percent: 80
-    quality_percent: 20
+    easy_percent: 75
+    quality_percent: 25
   current_focus:
-  - aerobic_base
-  - endurance
-  - running_economy
-  - gradual_volume_increase
+  - cardiac_drift_control
+  - aerobic_base_consolidation
+  - threshold_introduction
+  - race_pace_development
   progression:
-    current_long_run_km: 6
-    target_long_run_km: 18
+    current_long_run_km: 6.5
+    target_long_run_km: 10.5
     max_weekly_increase_percent: 10
+  periodization:
+  - phase: base_consolidation
+    weeks: 2026-08-23 a 2026-09-05
+    focus: Eliminar deriva cardiaca nas corridas leves antes de adicionar qualquer
+      estimulo de velocidade. Pace estritamente em Z2 real (7:55-8:45/km), longao
+      subindo de 6.5 para ~8 km.
+  - phase: aerobic_to_threshold
+    weeks: 2026-09-06 a 2026-09-19
+    focus: Introduzir 1 treino de qualidade por semana (progressivo/tempo curto),
+      longao subindo ate ~9-10 km. So avancar se a FC em Z2 estiver comportada.
+  - phase: race_specific_and_checkpoint
+    weeks: 2026-09-20 a 2026-10-03
+    focus: Teste de 5 km em campo (~27/09) para recalibrar o tempo-alvo real da prova.
+      Intervalados no pace de prova (6:00/km) e tempo runs no limiar.
+  - phase: taper
+    weeks: 2026-10-04 a 2026-10-13
+    focus: Reducao de volume de 30-40%, manter toques curtos no pace de prova, descanso
+      nos ultimos 2 dias antes da corrida.
 preferences:
-  avoid_days:
-  - monday
+  avoid_days: []
   preferred_training_days:
-  - tuesday
+  - monday
   - wednesday
-  - friday
-  - sunday
+  - thursday
+  - saturday
   interval_preference: morning
   recovery:
     avoid_hills: true
@@ -70,17 +148,42 @@ preferences:
     recommended_days_per_week: 2
     goal: maintain_muscle_mass
 notes:
-- Retornando apos aproximadamente 30 dias sem correr.
-- Priorizar reconstrucao da base aerobica antes de buscar velocidade.
-- Corridas leves devem permanecer predominantemente em Z2.
-- Evitar transformar treinos leves em treinos progressivos.
-- Longao deve ser predominantemente leve.
-- Reavaliar zonas conforme novos dados do Garmin.
-- Definir tempo-alvo da meia maratona somente apos consolidar 10 km e 15 km.
+- 'Mudanca de rota em 2026-09-13: o treinador Greg (Garmin Coach) passou a montar
+  o plano de treinos do atleta. O garmin-trainer NAO gera nem publica treinos desde
+  entao - so faz check-in diario (metricas do dia + analise do treino quando houver)
+  via `cli.py daily`, chamado pelo pipeline agendado. Ver profile.external_coach.'
+- 'Corrigida a data da prova em 2026-09-13: 10 km sub-60min agora e'' em 2026-10-11
+  (nao 13/10 como registrado antes).'
+- Atleta esta com 86 kg em 2026-09-13 e quer perder peso, sem meta numerica definida
+  ainda. Acompanhar peso via wellness.weight_kg (sincronizado do Garmin) nos check-ins
+  diarios e nas revisoes do personal trainer.
+- Retornou de aproximadamente 30 dias sem correr em 24/07/2026; considerado adaptado
+  ao retorno a partir de 2026-08-23 (4 semanas de treino consistente), pronto para
+  progredir intensidade de forma controlada.
+- 'Objetivo mudou em 2026-08-23: 10 km em 1h (13/10/2026) e agora a meta primaria;
+  meia maratona vira meta secundaria/futura. Ver goal.primary.feasibility_note - meta
+  agressiva, requer reavaliacao no teste de 5 km de ~27/09.'
+- Adicionado 4o treino semanal (quinta-feira) em 2026-08-23 a pedido do atleta, necessario
+  para ter chance real de sub-60 no 10 km.
+- Corridas leves devem permanecer predominantemente em Z2 de pace (ver pace_zones
+  recalibradas em 2026-08-23 - Z2 real e mais lento do que a estimativa inicial).
+- Evitar transformar treinos leves em treinos progressivos, exceto nos treinos de
+  qualidade explicitamente planejados na periodizacao (training.progression.periodization).
+- Longao deve ser predominantemente leve, mesmo na fase de introducao de qualidade.
+- Reavaliar pace_zones e hr_zones conforme novos dados do Garmin, e formalmente no
+  checkpoint de 2026-09-27 (teste de 5 km).
+- Atleta pediu para os treinos serem guiados por pace em vez de FC (2026-08-13).
+- 'Historico recente (13 corridas entre 24/07 e 22/08) mostra deriva cardiaca constante
+  em rodagens leves: FC media ficou em Z3 (156-166 bpm) na maioria das corridas mesmo
+  com pace nominal de Z2, com excecao de 31/07 e 02/08 (unicas com FC efetivamente
+  em Z2, e ambas mais lentas que 8:00/km). Corrigir isso e pre-requisito para introduzir
+  qualquer treino de velocidade - ao usar pace como alvo, sempre mencionar na descricao
+  do treino que, se a FC subir e permanecer acima da Z3, o atleta deve desacelerar
+  mesmo abaixo do pace-alvo.'
 history:
-  last_synced_activity_id: '23822760429'
+  last_synced_activity_id: '24573211486'
   last_pushed_workout_ids:
-  - '1650745941'
-  - '1650745949'
-  - '1650745960'
-  - '1650745972'
+  - '1684745877'
+  - '1684745884'
+  - '1684745887'
+  - '1684745892'

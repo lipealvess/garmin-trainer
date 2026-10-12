@@ -12,28 +12,40 @@ NAME="garmin-trainer"
 
 if [ "${1:-}" = "--remove" ]; then
     systemctl --user disable --now "$NAME.timer" 2>/dev/null || true
-    rm -f "$UNIT_DIR/$NAME.service" "$UNIT_DIR/$NAME.timer"
+    rm -f "$UNIT_DIR/$NAME.service" "$UNIT_DIR/$NAME.timer" "$UNIT_DIR/$NAME-alert.service"
     systemctl --user daemon-reload
     echo "Timer removido."
     exit 0
 fi
 
 [ -x "$ROOT/.venv/bin/python" ] || { echo "Crie o .venv antes: python3 -m venv .venv && .venv/bin/pip install -e ."; exit 1; }
-chmod +x "$ROOT/scripts/run_tick.sh"
 mkdir -p "$UNIT_DIR"
 
+# Os scripts sao chamados via /bin/bash (e nao direto) para nao depender do bit +x, que ja se
+# perdeu uma vez neste repo (veio do Windows) e deixou o timer falhando em silencio com 203/EXEC.
 cat > "$UNIT_DIR/$NAME.service" <<EOF
 [Unit]
 Description=garmin-trainer: analise de atividades e relatorio matinal do Garmin
 Wants=network-online.target
 After=network-online.target
+OnFailure=$NAME-alert.service
 
 [Service]
 Type=oneshot
-ExecStart="$ROOT/scripts/run_tick.sh"
+ExecStart=/bin/bash "$ROOT/scripts/run_tick.sh"
 WorkingDirectory=$ROOT
 TimeoutStartSec=15min
 Nice=10
+EOF
+
+cat > "$UNIT_DIR/$NAME-alert.service" <<EOF
+[Unit]
+Description=garmin-trainer: email de alerta quando a execucao agendada falha
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash "$ROOT/scripts/notify_failure.sh"
+WorkingDirectory=$ROOT
 EOF
 
 cat > "$UNIT_DIR/$NAME.timer" <<EOF

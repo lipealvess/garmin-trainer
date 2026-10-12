@@ -107,7 +107,7 @@ goal:
 training:
   plan_owner: garmin_trainer
   plan_owner_since: '2026-10-12'
-  auto_publish: false
+  auto_publish: true
   auto_publish_note: Quando true, o tick gera e publica a semana seguinte todo domingo
     (ou no primeiro tick da semana se o domingo for perdido).
   days_per_week: 3

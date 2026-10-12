@@ -1,18 +1,15 @@
 name: Filipe
 profile:
   level: intermediate_returning
-  current_phase: base_to_race_specific_10k
-  recent_break_days: 30
+  current_phase: post_race_recovery_then_10k_base
   primary_sport: running
 external_coach:
   name: Greg
   source: Garmin Coach
   since: '2026-09-13'
-  note: 'A partir de 2026-09-13, quem monta o plano de treinos (dias, volume, series)
-    e'' o treinador Greg via Garmin Coach, nao mais o garmin-trainer/IA. O papel deste
-    sistema mudou para acompanhamento: check-in diario com metricas (sono, estresse,
-    HRV, peso) e analise da execucao do treino quando houver um, sem nunca propor
-    treinos, series ou ajustes de plano - isso e'' responsabilidade do Greg.'
+  until: '2026-10-12'
+  note: O Greg montou o plano entre 2026-09-13 e a prova de 2026-10-11. A partir de
+    2026-10-12 o plano voltou a ser do garmin-trainer, a pedido do atleta.
 body:
   weight_kg: 86
   weight_goal: lose_weight
@@ -20,7 +17,7 @@ body:
   weight_note: Sem meta numerica de peso definida ainda - acompanhar tendencia via
     peso sincronizado do Garmin (balanca conectada) quando disponivel.
 heart_rate:
-  max_hr: 191
+  max_hr: 193
   max_hr_source: observed_garmin
   resting_hr: 55
   hr_zones:
@@ -44,6 +41,11 @@ heart_rate:
       min: 179
       max: 191
       purpose: high_intensity
+  max_hr_note: 193 bpm observado em 2026-08-27 (arrancadas); 192 na prova de 2026-10-11.
+    Zonas abaixo ainda calibradas com 191 - diferenca desprezivel.
+  watch_zones_note: As zonas configuradas no RELOGIO sao diferentes (limites inferiores
+    98/120/138/160/178). Para alvo de FC nos treinos use faixa de bpm (hr_range) com
+    os valores destas hr_zones, nunca zoneNumber.
 pace_target_mode: pace
 pace_zones:
   note: 'Recalibrado em 2026-08-23 usando regressao pace/FC sobre 13 corridas desde
@@ -76,69 +78,78 @@ pace_zones:
     purpose: high_intensity
 goal:
   primary:
-    race_name: 10km
+    race_name: 10 km
     distance_km: 10
-    race_date: '2026-10-11'
-    target_time: 01:00:00
-    objective: run_10k_sub_60min
+    race_date: null
+    race_date_note: Sem prova escolhida ainda. Planejar para ~10 semanas (meados de
+      dezembro/2026); ajustar quando o atleta definir a data.
+    target_time: 01:05:00
+    objective: run_10k_sub_65min
     priority: high
-    set_on: '2026-08-23'
-    feasibility_note: 'Meta agressiva partindo do estado atual: pace sustentavel hoje
-      em Z2 real e ~8:00-8:45/km, e nenhuma corrida (antes ou depois da pausa) sustentou
-      6:00/km por mais de ~3km, sempre em esforco quase maximo. Tratar como teto ambicioso,
-      nao como certeza - reavaliar com um teste de 5 km em campo por volta de 2026-09-27
-      (fim da fase de construcao) e ajustar o tempo-alvo realista da prova com base
-      no resultado desse teste.'
+    set_on: '2026-10-12'
+    feasibility_note: 'Meta intermediaria realista: -3 min em relacao a 1:08:11, apoiada
+      em construir base aerobica de verdade (o historico mostra eficiencia pace/FC
+      parada desde abril e quase todo treino em Z4/Z5).'
   secondary:
     race_name: Meia Maratona
     distance_km: 21.1
     race_date: null
     target_time: null
-    objective: future_goal_after_10k
+    objective: half_marathon_after_10k
     priority: medium
+  previous:
+    race_name: Corrida Ze do Bairro 10 km
+    race_date: '2026-10-11'
+    result: 01:08:11 (10 km pelo relogio, 6:50/km, FC media 178, 31 C)
+    note: Melhor 10 km do historico (-70 s vs 29/08), split negativo e desacoplamento
+      de 0.5%. Meta de sub-60 nao atingida; ficou ~30 s acima da previsao do Garmin
+      (1:07:41).
 training:
-  plan_owner: external_coach_greg
-  plan_owner_note: Os campos abaixo (days_per_week, periodization, progression) sao
-    o ultimo plano que o garmin-trainer tinha montado antes de 2026-09-13 - contexto
-    historico, nao usar para propor treinos novos. Quem define o plano atual e' o
-    Greg.
-  days_per_week: 4
+  plan_owner: garmin_trainer
+  plan_owner_since: '2026-10-12'
+  auto_publish: false
+  auto_publish_note: Quando true, o tick gera e publica a semana seguinte todo domingo
+    (ou no primeiro tick da semana se o domingo for perdido).
+  days_per_week: 3
   long_run_day: saturday
   intensity_distribution:
-    easy_percent: 75
-    quality_percent: 25
+    easy_percent: 80
+    quality_percent: 20
   current_focus:
+  - post_race_recovery
+  - true_easy_aerobic_base
   - cardiac_drift_control
-  - aerobic_base_consolidation
-  - threshold_introduction
-  - race_pace_development
+  - one_quality_session_per_week
   progression:
-    current_long_run_km: 6.5
-    target_long_run_km: 10.5
+    current_long_run_km: 10
     max_weekly_increase_percent: 10
+  key_rules:
+  - 'Rodagens leves e longao guiados por FC (hr_range 140-155 bpm), NAO por pace:
+    o historico mostra 73-96% do tempo em Z4/Z5 mesmo nas corridas ''tranquilas''
+    quando guiadas por pace.'
+  - No maximo 1 treino de qualidade por semana (limiar ou intervalado), guiado por
+    pace, com aquecimento e desaquecimento.
+  - 'Com 3 dias por semana: 1 rodagem leve, 1 qualidade, 1 longao leve.'
   periodization:
-  - phase: base_consolidation
-    weeks: 2026-08-23 a 2026-09-05
-    focus: Eliminar deriva cardiaca nas corridas leves antes de adicionar qualquer
-      estimulo de velocidade. Pace estritamente em Z2 real (7:55-8:45/km), longao
-      subindo de 6.5 para ~8 km.
-  - phase: aerobic_to_threshold
-    weeks: 2026-09-06 a 2026-09-19
-    focus: Introduzir 1 treino de qualidade por semana (progressivo/tempo curto),
-      longao subindo ate ~9-10 km. So avancar se a FC em Z2 estiver comportada.
-  - phase: race_specific_and_checkpoint
-    weeks: 2026-09-20 a 2026-10-03
-    focus: Teste de 5 km em campo (~27/09) para recalibrar o tempo-alvo real da prova.
-      Intervalados no pace de prova (6:00/km) e tempo runs no limiar.
-  - phase: taper
-    weeks: 2026-10-04 a 2026-10-13
-    focus: Reducao de volume de 30-40%, manter toques curtos no pace de prova, descanso
-      nos ultimos 2 dias antes da corrida.
+  - phase: post_race_recovery
+    weeks: 2026-10-12 a 2026-10-18
+    focus: Recuperar da prova (HRV 25 ms, sono 45 no dia seguinte). Apenas corridas
+      curtas e muito leves por FC, sem qualidade.
+  - phase: aerobic_base
+    weeks: 2026-10-19 a 2026-11-15
+    focus: 'Base aerobica real: rodagens e longao em 140-155 bpm mesmo que o pace
+      fique 8:00-9:00/km. Qualidade leve: strides/progressivo curto.'
+  - phase: threshold_development
+    weeks: 2026-11-16 a 2026-12-06
+    focus: 1 treino de limiar por semana (blocos em Z4 de pace), longao ate ~12 km
+      leve.
+  - phase: race_specific_and_taper
+    weeks: 2026-12-07 a 2026-12-20
+    focus: Ritmo de prova (~6:30/km) em blocos, polimento na ultima semana.
 preferences:
   avoid_days: []
   preferred_training_days:
-  - monday
-  - wednesday
+  - tuesday
   - thursday
   - saturday
   interval_preference: morning
@@ -148,6 +159,9 @@ preferences:
     recommended_days_per_week: 2
     goal: maintain_muscle_mass
 notes:
+- '2026-10-12: plano de treinos voltou a ser do garmin-trainer (fim do Greg/Garmin
+  Coach), 3 dias/semana, publicacao automatica semanal. Proximo objetivo: outro 10
+  km (~meados de dezembro), meta 1:05:00; meia maratona depois.'
 - 'Mudanca de rota em 2026-09-13: o treinador Greg (Garmin Coach) passou a montar
   o plano de treinos do atleta. O garmin-trainer NAO gera nem publica treinos desde
   entao - so faz check-in diario (metricas do dia + analise do treino quando houver)
@@ -180,10 +194,3 @@ notes:
   qualquer treino de velocidade - ao usar pace como alvo, sempre mencionar na descricao
   do treino que, se a FC subir e permanecer acima da Z3, o atleta deve desacelerar
   mesmo abaixo do pace-alvo.'
-history:
-  last_synced_activity_id: '24573211486'
-  last_pushed_workout_ids:
-  - '1684745877'
-  - '1684745884'
-  - '1684745887'
-  - '1684745892'

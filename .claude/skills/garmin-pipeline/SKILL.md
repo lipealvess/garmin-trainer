@@ -1,6 +1,6 @@
 ---
 name: garmin-pipeline
-description: Roda o acompanhamento automatizado (analisa cada atividade nova e envia o relatorio matinal de sono/HRV/FC/estresse/body battery) — o fluxo fim-a-fim do garmin-trainer. NAO gera nem publica treinos.
+description: Roda o fluxo automatizado do garmin-trainer (analisa cada atividade nova, publica o plano semanal aos domingos e envia o relatorio matinal de sono/HRV/FC/estresse/body battery).
 ---
 
 # garmin-pipeline
@@ -8,22 +8,18 @@ description: Roda o acompanhamento automatizado (analisa cada atividade nova e e
 O acompanhamento tem dois tipos de email, ambos em HTML:
 
 - **Por atividade**: cada atividade nova no Garmin Connect vira um email com a analise do treino
-  (prescrito pelo Greg x executado, voltas, tempo por zona, desacoplamento pace:FC/deriva cardiaca,
+  (prescrito x executado, voltas, tempo por zona, desacoplamento pace:FC/deriva cardiaca,
   cadencia, calor).
 - **Relatorio matinal** (1x por dia): sono e fases, HRV x faixa normal, FC de repouso x media 7d,
   body battery, estresse/passos/intensidade de ontem, tendencias de 7 dias, contagem regressiva da
   prova e previsao do Garmin. Sai assim que o sono da noite sincroniza (ou a partir das 11h).
 
-## Mudanca de rota (2026-09-13)
+- **Plano semanal** (domingo, ou o primeiro tick da semana): so com `training.plan_owner:
+  garmin_trainer` e `training.auto_publish: true` no perfil. Ver skill `garmin-coach`.
 
-Desde 2026-09-13 quem monta o plano de treinos do atleta e' o **treinador Greg, via Garmin Coach** —
-nao mais este pipeline. Por isso este fluxo **NUNCA gera nem publica treinos** (sem `--push`, sem
-`generate_coach_plan`). O papel do garmin-trainer virou monitoramento/analise, nao prescricao. Ver
-`config/athlete_profile.yaml` -> `external_coach`.
+## Historico de quem monta o plano
 
-Os comandos antigos de plano (`coach`, `run --push`) ainda existem no CLI mas sao manuais/opcionais —
-ver a skill `garmin-coach`. Nunca rode `--push` por conta propria: publicaria treinos que colidem com
-o calendario que o Greg ja preencheu.
+2026-09-13 a 2026-10-11: treinador Greg (Garmin Coach). Desde 2026-10-12: o proprio garmin-trainer.
 
 ## Automacao ja configurada (Linux, desde 2026-10-04)
 

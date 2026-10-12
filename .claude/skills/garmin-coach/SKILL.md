@@ -1,37 +1,31 @@
 ---
 name: garmin-coach
-description: (Manual/opcional desde 2026-09-13 — o treinador Greg via Garmin Coach e' quem monta o plano oficial) Roda a IA (Gemini) sobre atividades, sono, estresse e HRV recentes do Garmin e propoe um bloco de treinos alternativo, com revisao antes de publicar.
+description: Gera (e opcionalmente publica no relogio) o plano de treinos da semana com a IA, a partir do perfil, das ultimas 4 semanas de atividades e de 7 dias de sono/HRV/FC. O garmin-trainer e' o dono do plano desde 2026-10-12.
 ---
 
 # garmin-coach
 
-Gera um bloco de treinos alternativo com base no historico recente de atividades, sono/estresse/HRV
-dos ultimos dias, e no perfil do atleta (`config/athlete_profile.yaml`). Por padrao roda em modo
-dry-run — nao escreve nada no Garmin Connect. A IA usa os dados de recuperacao (sono, estresse, HRV)
-para de fato ajustar a intensidade do bloco quando necessario, nao so pra comentar — isso aparece no
-campo `recovery_assessment` da resposta.
+Monta o plano semanal (`cli plan`). O planejador recebe o perfil (`config/athlete_profile.yaml`:
+objetivo, `training.periodization`, `training.key_rules`, dias preferidos), as atividades das ultimas
+4 semanas, 7 dias de recuperacao e o plano da semana anterior, e usa a recuperacao para decidir de
+verdade a intensidade (campo `recovery_assessment`).
 
-## Atencao: desde 2026-09-13 o plano oficial e' do treinador Greg (Garmin Coach)
+## Contexto
 
-O atleta tem um treinador humano (Greg) montando os treinos dele via Garmin Coach. Esta skill so deve
-ser usada se o usuario pedir **explicitamente** um plano/segunda opiniao gerado por IA — nao rode por
-iniciativa propria, e nunca use `--push` sem confirmar que o usuario entende que isso vai **competir
-com o calendario que o Greg ja preencheu** no Garmin Connect (workouts duplicados/conflitantes no
-mesmo dia). Pra acompanhamento normal do dia a dia, a automacao usa a skill `garmin-pipeline`
-(check-in diario, sem gerar treinos) e a skill `garmin-review` (analise retrospectiva sob demanda).
+- Entre 2026-09-13 e 2026-10-11 o plano foi do treinador Greg (Garmin Coach). Desde 2026-10-12 voltou
+  a ser do garmin-trainer, a pedido do atleta (`training.plan_owner: garmin_trainer`).
+- Rodagens leves e longao sao guiados por faixa de bpm (`hr_range`, Z2 do perfil = 140-155), nao por
+  pace: o historico mostrou 73-96% do tempo em Z4/Z5 nas corridas "tranquilas" guiadas por pace.
+- Com `training.auto_publish: true`, o timer gera e publica a semana sozinho todo domingo (ou no
+  primeiro tick da semana). Esta skill e para rodar sob demanda: replanejar no meio da semana, ver um
+  rascunho, ou depois de mudar o perfil.
 
 ## Passos
 
-1. Rode em dry-run primeiro:
-   `.venv/bin/python -m garmin_trainer.cli coach`
-2. Mostre ao usuario a analise da IA, o que melhorou, pontos de atencao, avaliacao de recuperacao
-   (sono/estresse/HRV) e a lista de treinos propostos (data, esporte, nome, descricao).
-3. Pergunte explicitamente se o usuario quer publicar esses treinos no Garmin Connect antes de fazer
-   qualquer envio. Publicar cria e agenda workouts na conta real do usuario — isso e uma acao que
-   afeta um sistema externo, entao sempre confirme antes, mesmo que o usuario ja tenha confirmado em
-   uma execucao anterior.
-4. Se o usuario confirmar, rode:
-   `.venv/bin/python -m garmin_trainer.cli coach --push`
-5. Se o usuario tambem quiser o email de insights nesta execucao manual, adicione `--email`.
-
-Use `--days-ahead N` se o usuario quiser um horizonte de planejamento diferente de 7 dias.
+1. Rascunho (nao publica nada):
+   `.venv/bin/python -m garmin_trainer.cli plan`
+   (`--start-date AAAA-MM-DD` para escolher o inicio; padrao: hoje, ou a segunda se hoje for domingo)
+2. Mostre a semana: treinos por dia com os steps, o racional e a leitura de recuperacao.
+3. Publicar cria e agenda treinos na conta real e apaga os treinos futuros do plano anterior —
+   confirme com o usuario antes, a menos que ele ja tenha pedido para publicar nesta conversa.
+4. Para publicar: `.venv/bin/python -m garmin_trainer.cli plan --push --email`

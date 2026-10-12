@@ -51,6 +51,19 @@ def _target_fields(target: StepTarget) -> dict[str, Any]:
     confirmado: para hr_zone, a Garmin ignora targetValueOne/Two (deriva o bpm da zona configurada
     no perfil do usuario) — so zoneNumber importa.
     """
+    if target.kind == "hr_range" and target.hr_min_bpm and target.hr_max_bpm:
+        # Faixa de bpm personalizada: mesmo targetType de zona, mas sem zoneNumber. Confirmado
+        # contra conta real em 2026-10-12 (a Garmin devolve os valores 140/155 intactos).
+        return {
+            "targetType": {
+                "workoutTargetTypeId": TargetType.HEART_RATE_ZONE,
+                "workoutTargetTypeKey": "heart.rate.zone",
+                "displayOrder": TargetType.HEART_RATE_ZONE,
+            },
+            "targetValueOne": target.hr_min_bpm,
+            "targetValueTwo": target.hr_max_bpm,
+        }
+
     if target.kind == "hr_zone" and target.hr_zone:
         return {
             "targetType": {

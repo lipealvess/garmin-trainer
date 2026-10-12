@@ -9,16 +9,12 @@ from typing import TYPE_CHECKING
 
 from .config import AppConfig
 from .metrics import ActivityDetail, fmt_pace
-from .plan_schema import ActivityAnalysis, CoachResponse, MorningReport, TrainerReview
+from .plan_schema import ActivityAnalysis, CoachResponse, MorningReport, Step, TrainerReview
 
 if TYPE_CHECKING:
-    from .pipeline import SyncResult
     from .wellness import WellnessDay
 
-FOOTER = (
-    "Lembrete: o treinador Greg (Garmin Coach) e quem define os treinos. Este email e so "
-    "acompanhamento/analise, gerado automaticamente pelo garmin-trainer."
-)
+FOOTER = "Gerado automaticamente pelo garmin-trainer."
 
 
 def _send_email(config: AppConfig, subject: str, body: str, html_body: str | None = None) -> None:
@@ -190,7 +186,7 @@ def send_activity_report(
     if s.hr_time_in_zones_s:
         parts.append(_section("Tempo por zona de FC (zonas do relogio)", _zone_bar(s.hr_time_in_zones_s)))
     if detail.planned_workout_md:
-        parts.append(_section("Treino do Greg",
+        parts.append(_section("Treino prescrito",
                               f"<pre style='font-size:12px;background:#f9fafb;padding:8px;white-space:pre-wrap'>"
                               f"{_esc(detail.planned_workout_md)}</pre>"))
     if detail.laps:
@@ -226,6 +222,7 @@ def send_morning_report(
     days: list[WellnessDay],
     report: MorningReport | None,
     error: str | None,
+    planned_today: list[dict] | None = None,
 ) -> None:
     today_str = date.today().isoformat()
     today = next((d for d in days if d.date == today_str), None)
@@ -259,6 +256,11 @@ def send_morning_report(
         parts.append(f"<p style='font-size:15px;margin:10px 0'>Prontidao {_chip(report.readiness)} &nbsp;"
                      f"<b>{_esc(report.headline)}</b></p>")
     parts.append(_cards(cards))
+    if planned_today:
+        parts.append(_section("Treino de hoje", "".join(
+            f"<p style='margin:6px 0'><b>{_esc(w['name'])}</b><br>{_esc(w.get('description', ''))}</p>"
+            for w in planned_today
+        )))
     if report:
         parts += [
             _section("Sono", _text_html(report.sleep_analysis)),
@@ -294,46 +296,73 @@ def send_morning_report(
 # Emails legados / sob demanda (texto simples)
 # ---------------------------------------------------------------------------
 
-def _build_body(plan: CoachResponse, sync_result: SyncResult) -> str:
-    workouts_lines = []
+_WEEKDAYS = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"]
+_STEP_NAMES = {"warmup": "Aquecimento", "interval": "Principal", "recovery": "Recuperacao", "cooldown": "Desaquecimento"}
+
+
+def _describe_target(step: Step) -> str:
+    t = step.target
+    if t.kind == "hr_range" and t.hr_min_bpm and t.hr_max_bpm:
+        return f"FC {t.hr_min_bpm}-{t.hr_max_bpm} bpm"
+    if t.kind == "pace" and t.pace_min_per_km:
+        fast = t.pace_min_per_km - t.pace_tolerance_min_per_km
+        slow = t.pace_min_per_km + t.pace_tolerance_min_per_km
+        return f"pace {fmt_pace(fast)}-{fmt_pace(slow)}/km"
+    if t.kind == "hr_zone" and t.hr_zone:
+        return f"zona {t.hr_zone} do relogio"
+    return "livre"
+
+
+def describe_steps(steps: list[Step], indent: str = "") -> list[str]:
+    lines = []
+    for step in steps:
+        if step.repeat_iterations and step.repeat_steps:
+            lines.append(f"{indent}{step.repeat_iterations}x:")
+            lines.extend(describe_steps(step.repeat_steps, indent + "    "))
+            continue
+        amount = (f"{step.duration_value / 60:g} min" if step.duration_type == "time"
+                  else f"{step.duration_value / 1000:g} km")
+        lines.append(f"{indent}{_STEP_NAMES.get(step.kind, step.kind)}: {amount} @ {_describe_target(step)}")
+    return lines
+
+
+def send_plan_report(config: AppConfig, plan: CoachResponse, start: date, end: date, published: bool) -> None:
+    period = f"{start.strftime('%d/%m')} a {end.strftime('%d/%m')}"
+    workouts_html = []
+    text_workouts = []
     for w in plan.planned_workouts:
-        workouts_lines.append(f"- {w.date} [{w.sport}] {w.name}")
-        workouts_lines.append(f"  {w.description}")
-    workouts_block = "\n".join(workouts_lines) if workouts_lines else "(nenhum treino novo)"
+        d = date.fromisoformat(w.date)
+        label = f"{_WEEKDAYS[d.weekday()]} {d.strftime('%d/%m')}"
+        steps = describe_steps(w.steps)
+        workouts_html.append(
+            f"<div style='border:1px solid {_LINE};border-radius:8px;padding:10px 12px;margin:8px 0'>"
+            f"<div style='font-size:12px;color:{_MUTED};text-transform:uppercase'>{_esc(label)}</div>"
+            f"<div style='font-size:16px;font-weight:bold;margin:2px 0 6px'>{_esc(w.name)}</div>"
+            f"<p style='margin:4px 0;line-height:1.5'>{_esc(w.description)}</p>"
+            f"<pre style='font-size:12px;background:#f9fafb;padding:6px 8px;margin:6px 0 0;white-space:pre-wrap'>"
+            f"{_esc(chr(10).join(steps))}</pre></div>"
+        )
+        text_workouts += [f"{label} - {w.name}", w.description, *steps, ""]
 
-    return f"""Relatorio Garmin Trainer — {date.today().isoformat()}
-
-## Atividades desde o ultimo ciclo
-{sync_result.summaries_md}
-
-## O que melhorou
-{plan.highlights}
-
-## Pontos de atencao
-{plan.improvement_areas}
-
-## Recuperacao (sono, estresse, HRV)
-{plan.recovery_assessment}
-
-## Metricas e alvos para os proximos treinos
-{plan.next_targets}
-
-## Resumo da analise
-{plan.analysis}
-
-## Treinos publicados no Garmin Connect
-{workouts_block}
-
---
-Gerado automaticamente pelo garmin-trainer.
-"""
-
-
-def send_report(config: AppConfig, plan: CoachResponse, sync_result: SyncResult) -> None:
+    status = "Publicado no seu relogio Garmin." if published else "Rascunho - ainda NAO publicado no relogio."
+    parts = [
+        f"<p style='font-size:15px;margin:10px 0'><b>{_esc(plan.week_focus or 'Plano da semana')}</b></p>",
+        f"<p style='font-size:12px;color:{_MUTED}'>{_esc(status)}</p>",
+        _section(f"Treinos ({len(plan.planned_workouts)})", "".join(workouts_html) or "<p>Semana de descanso.</p>"),
+        _section("Por que esta semana e assim", _text_html(plan.analysis)),
+        _section("Recuperacao", _text_html(plan.recovery_assessment)),
+        _section("O que observar", _text_html(plan.next_targets)),
+        _section("O que melhorou", _text_html(plan.highlights)),
+        _section("Pontos de atencao", _text_html(plan.improvement_areas)),
+    ]
+    text = [f"Plano da semana {period}", plan.week_focus, status, "", *text_workouts,
+            "Por que:", plan.analysis, "", "Recuperacao:", plan.recovery_assessment, "",
+            "O que observar:", plan.next_targets, "", "--", FOOTER]
     _send_email(
         config,
-        f"Garmin Trainer - Relatorio {date.today().isoformat()}",
-        _build_body(plan, sync_result),
+        f"Plano da semana {period}: {plan.week_focus or len(plan.planned_workouts)}",
+        "\n".join(text),
+        _page("Plano da semana", period, "".join(parts)),
     )
 
 

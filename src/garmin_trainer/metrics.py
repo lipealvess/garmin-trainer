@@ -192,7 +192,7 @@ def _render_steps(steps: list[dict[str, Any]], indent: str = "") -> list[str]:
 
 
 def render_planned_workout(workout: dict[str, Any]) -> str:
-    """Treino prescrito (Garmin Coach / Greg) em texto legivel."""
+    """Treino prescrito (agendado no Garmin) em texto legivel."""
     header = workout.get("workoutName") or "Treino"
     if workout.get("description"):
         header += f" - {workout['description']}"
@@ -231,7 +231,7 @@ def render_activity_detail_markdown(detail: ActivityDetail) -> str:
     if detail.decoupling_percent is not None:
         lines.append(f"- Desacoplamento pace:FC (1a x 2a metade): {detail.decoupling_percent}%")
     if detail.planned_workout_md:
-        lines.append("\nTreino prescrito pelo Greg (Garmin Coach):")
+        lines.append("\nTreino prescrito:")
         lines.append(detail.planned_workout_md)
     if detail.laps:
         lines.append("\n| Volta | Tipo | Dist (km) | Dur (min) | Pace | FC media | FC max | Cadencia |")

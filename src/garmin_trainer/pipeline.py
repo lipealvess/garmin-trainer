@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from . import ai_coach, email_report, wellness, workout_builder
-from .config import AppConfig, load_profile, save_profile
+from .config import AppConfig, load_profile
 from .garmin_client import GarminClient
 from .metrics import (
     ActivityDetail,
@@ -52,84 +52,109 @@ def sync_activities(client: GarminClient, profile: dict, limit: int = 10) -> Syn
     )
 
 
-def generate_coach_plan(
+def plan_window(today: date) -> tuple[date, date]:
+    """Domingo planeja a semana seguinte inteira; nos outros dias, o restante da semana atual
+    (cobre o caso de o PC ter ficado desligado no domingo)."""
+    if today.weekday() == 6:
+        start = today + timedelta(days=1)
+    else:
+        start = today
+    monday = start - timedelta(days=start.weekday())
+    return start, monday + timedelta(days=6)
+
+
+def _render_pushed_plan(workouts: list[dict[str, Any]]) -> str:
+    if not workouts:
+        return "Nenhum plano anterior do garmin-trainer."
+    return "\n".join(f"- {w['date']}: {w['name']} - {w.get('description', '')}" for w in workouts)
+
+
+def generate_week_plan(
     config: AppConfig,
     client: GarminClient,
     profile: dict,
-    sync_result: SyncResult,
-    days_ahead: int = 7,
-    start_date: date | None = None,
-    wellness_days: int = 3,
+    state: dict,
+    raw_activities: list[dict[str, Any]],
+    start_date: date,
+    end_date: date,
 ) -> CoachResponse:
-    wellness_summary_md = wellness.render_wellness_markdown(
-        wellness.fetch_wellness(client, days=wellness_days)
+    cutoff = (start_date - timedelta(days=28)).isoformat()
+    recent = sorted(
+        (summarize_activity(r) for r in raw_activities if (r.get("startTimeLocal") or "")[:10] >= cutoff),
+        key=lambda a: a.date,
     )
+    wellness_md = wellness.render_wellness_markdown(wellness.fetch_wellness(client, days=7))
     return ai_coach.generate_plan(
         config,
         profile,
-        sync_result.summaries_md,
-        wellness_summary_md,
-        days_ahead=days_ahead,
-        start_date=start_date,
+        render_summaries_markdown(recent),
+        wellness_md,
+        start_date,
+        end_date,
+        _render_pushed_plan(state.get("pushed_workouts") or []),
     )
 
 
-def push_plan(client: GarminClient, profile: dict, plan: CoachResponse) -> list[dict]:
-    """Publica o plano no Garmin, substituindo os treinos futuros do ciclo anterior.
+def push_plan(client: GarminClient, state: dict, plan: CoachResponse, start_date: date) -> list[dict]:
+    """Publica o plano no Garmin, substituindo os treinos do plano anterior que ainda nao aconteceram.
 
-    Sem isso, cada execucao do pipeline empilharia treinos novos em cima dos ja agendados
-    (workouts nao completados nao desaparecem sozinhos do calendario).
+    Treinos de datas passadas ficam (o vinculo atividade <-> treino prescrito e usado na analise).
     """
-    previous_ids = profile.get("history", {}).get("last_pushed_workout_ids", [])
-    for workout_id in previous_ids:
-        try:
-            client.api.delete_workout(workout_id)
-        except Exception:
-            pass  # ja completado, ja removido manualmente, ou expirado — segue o baile
+    keep = []
+    for w in state.get("pushed_workouts") or []:
+        if w["date"] >= start_date.isoformat():
+            try:
+                client.api.delete_workout(w["id"])
+            except Exception:
+                pass  # ja removido manualmente - segue
+        else:
+            keep.append(w)
 
     uploaded = []
-    for planned_workout in plan.planned_workouts:
-        workout = workout_builder.build_workout(planned_workout)
-        result = client.upload_and_schedule(workout, planned_workout.sport, planned_workout.date)
-        uploaded.append(result)
+    for planned in plan.planned_workouts:
+        result = client.upload_and_schedule(workout_builder.build_workout(planned), planned.sport, planned.date)
+        workout_id = result.get("workoutId") or result.get("workoutSummary", {}).get("workoutId")
+        uploaded.append(
+            {"id": str(workout_id), "date": planned.date, "name": planned.name, "description": planned.description}
+        )
 
-    new_ids = [
-        str(u.get("workoutId") or u.get("workoutSummary", {}).get("workoutId")) for u in uploaded
-    ]
-    profile.setdefault("history", {})["last_pushed_workout_ids"] = new_ids
+    # So guarda o historico recente (o planejador ve a semana anterior).
+    cutoff = (start_date - timedelta(days=7)).isoformat()
+    state["pushed_workouts"] = [w for w in keep if w["date"] >= cutoff] + uploaded
+    save_state(state)
     return uploaded
 
 
-def run_pipeline(
+def run_week_plan(
     config: AppConfig,
-    push: bool = False,
-    days_ahead: int = 7,
+    client: GarminClient,
+    profile: dict,
+    state: dict,
+    raw_activities: list[dict[str, Any]],
+    push: bool,
+    email: bool,
     start_date: date | None = None,
-    email: bool = False,
-) -> tuple[SyncResult, CoachResponse | None]:
-    profile = load_profile()
-    client = GarminClient(config)
-    client.login()
-
-    sync_result = sync_activities(client, profile)
-
-    if push and sync_result.new_activity_count == 0:
-        return sync_result, None
-
-    plan = generate_coach_plan(config, client, profile, sync_result, days_ahead=days_ahead, start_date=start_date)
+) -> tuple[CoachResponse, date, date]:
+    start, end = plan_window(start_date or date.today())
+    plan = generate_week_plan(config, client, profile, state, raw_activities, start, end)
+    plan.planned_workouts = [w for w in plan.planned_workouts if start.isoformat() <= w.date <= end.isoformat()]
 
     if push:
-        push_plan(client, profile, plan)
-        save_profile(profile)
-        if sync_result.newest_activity_id:
-            state = load_state()
-            state["last_synced_activity_id"] = sync_result.newest_activity_id
-            save_state(state)
-
+        push_plan(client, state, plan, start)
+        state["last_plan_week"] = (start - timedelta(days=start.weekday())).isoformat()
+        save_state(state)
     if email:
-        email_report.send_report(config, plan, sync_result)
+        email_report.send_plan_report(config, plan, start, end, published=push)
+    return plan, start, end
 
-    return sync_result, plan
+
+def _week_plan_due(profile: dict, state: dict, today: date) -> bool:
+    training = profile.get("training") or {}
+    if training.get("plan_owner") != "garmin_trainer" or not training.get("auto_publish"):
+        return False
+    start, _ = plan_window(today)
+    monday = start - timedelta(days=start.weekday())
+    return state.get("last_plan_week") != monday.isoformat()
 
 
 @dataclass
@@ -142,6 +167,8 @@ class ActivityResult:
 @dataclass
 class TickResult:
     activities: list[ActivityResult] = field(default_factory=list)
+    plan: CoachResponse | None = None
+    plan_error: str | None = None
     morning: MorningReport | None = None
     morning_sent: bool = False
     morning_error: str | None = None
@@ -256,29 +283,34 @@ def run_morning_report(
         key=lambda a: a.date,
     )
 
+    today_str = date.today().isoformat()
+    planned_today = [w for w in state.get("pushed_workouts") or [] if w["date"] == today_str]
+    planned_today_md = "\n".join(f"- {w['name']}: {w['description']}" for w in planned_today) or "Descanso (sem treino planejado)."
+
     report, error = None, None
     try:
         report = ai_coach.generate_morning_report(
             config, profile, wellness.render_wellness_markdown(days),
-            render_summaries_markdown(recent), _race_context_md(client, profile),
+            render_summaries_markdown(recent), _race_context_md(client, profile), planned_today_md,
         )
     except Exception as exc:
         error = str(exc)
 
     # Sem email (teste manual) o estado nao avanca, para nao "consumir" o envio real.
     if email:
-        email_report.send_morning_report(config, days, report, error)
+        email_report.send_morning_report(config, days, report, error, planned_today)
         state["last_morning_report_date"] = date.today().isoformat()
         save_state(state)
     return report, error
 
 
 def run_tick(config: AppConfig, email: bool = True, force_morning: bool = False) -> TickResult:
-    """Execucao agendada (a cada 30 min e ao ligar o PC). So acompanha - nunca gera nem publica
-    treinos, quem monta o plano e o treinador Greg (Garmin Coach).
+    """Execucao agendada (a cada 30 min e ao ligar o PC).
 
     1. Cada atividade nova -> email com a analise do treino.
-    2. Uma vez por dia -> relatorio matinal (sono, HRV, FC, estresse, body battery, passos), assim
+    2. Uma vez por semana (domingo, ou o primeiro tick da semana) -> gera e publica o plano da semana,
+       se training.plan_owner == garmin_trainer e training.auto_publish no perfil.
+    3. Uma vez por dia -> relatorio matinal (sono, HRV, FC, estresse, body battery, passos), assim
        que o sono da noite tiver sincronizado (ou a partir de MORNING_FALLBACK_HOUR).
     Sem novidade, nao chama a IA nem manda email.
     """
@@ -287,9 +319,17 @@ def run_tick(config: AppConfig, email: bool = True, force_morning: bool = False)
     client = GarminClient(config)
     client.login()
 
-    raw_activities = client.recent_activities(limit=15)
+    raw_activities = client.recent_activities(limit=25)
     result = TickResult()
     result.activities = process_new_activities(config, client, profile, state, raw_activities, email)
+
+    # Plano semanal antes do relatorio matinal, para o relatorio ja enxergar o treino de hoje.
+    if email and _week_plan_due(profile, state, date.today()):
+        try:
+            result.plan, _, _ = run_week_plan(config, client, profile, state, raw_activities, push=True, email=True)
+        except Exception as exc:
+            # Nao bloqueia o relatorio matinal; a proxima execucao tenta de novo (last_plan_week nao avancou).
+            result.plan_error = str(exc)
 
     today = date.today().isoformat()
     if not force_morning and state.get("last_morning_report_date") == today:
